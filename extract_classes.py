@@ -77,6 +77,10 @@ def make_smaller_sets(train_images, test_images, train_labels, test_labels):
     test_labels = test_labels[:1000]
     return train_images, test_images, train_labels, test_labels
 
+# it normalizes the images, simplifies the calculations and execute faster
+def normalize_images(train_images, test_images):
+    return train_images / 255.0, test_images / 255.0
+
 # it starts linar svm with given regularization parameters and image & label datasets 
 def start_svm(regulirazation_param, train_images, train_labels, test_images, test_labels):
     print("Regularization Param (C): " + str(regulirazation_param))
@@ -97,7 +101,7 @@ def start_svm(regulirazation_param, train_images, train_labels, test_images, tes
 
 # Warning: It takes to much time
 # It will finds the best regularization parameter for svm
-def find_best_param():
+def find_best_param(train_images, train_labels, test_images, test_labels):
     # differnt C parameters
     # A higher value of C allows for fewer margin violations (hard margin), while a lower value of C allows for more margin violations (soft margin)
     param_grid = {'C': [0.01, 0.1, 1, 10, 100]}
@@ -128,11 +132,14 @@ def step_b(train_images, train_labels, test_images, test_labels):
     start_svm(regulirazation_param, train_images, train_labels, test_images, test_labels)
     #find_best_param()
 
+
+
 train_images, train_labels, test_images, test_labels = get_images_labels()
 print_test_train_labels(train_labels, test_labels)
 #train_images, test_images, train_labels, test_labels = make_smaller_sets(train_images, test_images, train_labels, test_labels)
 train_images, test_images = reshaping_images_for_svm(train_images, test_images)
+train_images,test_images = normalize_images(train_images,test_images)
 step_b(train_images, train_labels, test_images, test_labels)
-#find_best_param()
+#find_best_param(train_images, train_labels, test_images, test_labels)
 
 
