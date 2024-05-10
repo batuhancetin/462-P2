@@ -117,6 +117,14 @@ def find_best_kernel(train_images, train_labels):
     print("Best parameters:", grid_search.best_params_)
     print("Best cross-validation score: {:.2f}".format(grid_search.best_score_))
 
+# finding the best gamma
+def find_best_gamma(train_images, train_labels): 
+    parameters = {'gamma':('0.1', '1', '10')}
+    grid_search = GridSearchCV(SVC(C=10, kernel='rbf'), parameters)
+    grid_search.fit(train_images, train_labels)
+    print("Best parameters:", grid_search.best_params_)
+    print("Best cross-validation score: {:.2f}".format(grid_search.best_score_))
+
 
 # Load and preprocess data
 train_images, train_labels, test_images, test_labels = get_images_labels()
