@@ -7,7 +7,9 @@ from sklearn.metrics import classification_report, accuracy_score
 import pandas as pd
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import LinearSVC
+from sklearn.decomposition import PCA
 import time
+import matplotlib.pyplot as plt
 
 
 #need to install 
@@ -100,6 +102,19 @@ def train_and_evaluate_svm(train_images, train_labels, test_images, test_labels)
     print("Accuracy:", accuracy)
     print("\nClassification Report:\n", classification_report(test_labels, y_pred))
 
+    return svm_classifier
+
+# this function extracts the features, it defaults extract features until 50 features remaining (from 786 28*28)
+def apply_pca(train_images, test_images, n_components=50):
+    start_time = time.time()
+    pca = PCA(n_components=n_components)
+    pca.fit(train_images)
+    train_images_pca = pca.transform(train_images)
+    test_images_pca = pca.transform(test_images)
+    end_time = time.time()
+    print(f"PCA Process completed in {end_time - start_time:.2f} seconds.")
+    return train_images_pca, test_images_pca
+
 
 # finding the best C
 def find_best_hyperparam(train_images, train_labels): 
@@ -125,17 +140,48 @@ def find_best_gamma(train_images, train_labels):
     print("Best parameters:", grid_search.best_params_)
     print("Best cross-validation score: {:.2f}".format(grid_search.best_score_))
 
+# it displays support vectors label by label
+def display_support_vectors(svm_classifier, train_images, train_labels):
+    support_vectors = svm_classifier.support_vectors_
+    support_vector_indices = svm_classifier.support_
+    support_vector_labels = train_labels[support_vector_indices]
+    required_digits = [2, 3, 8, 9]
+
+    for cur_label in required_digits:
+        # Filter support vectors for the current digit
+        digit_indices = [idx for idx, label in enumerate(support_vector_labels) if label == cur_label]
+        digit_sv = support_vectors[digit_indices]
+
+        # plotting support vectors for current label
+        fig, axes = plt.subplots(8, 10, figsize=(10, 2))  # 4 column, 20 rows
+        fig.suptitle(f'Support Vectors for Label {cur_label}')
+        axes = axes.flatten()
+        for ax, image in zip(axes, digit_sv):
+            ax.imshow(image.reshape(28, 28), cmap='gray')
+            ax.axis('off')
+        plt.show()
+
+is_apply_pca = False
 
 # Load and preprocess data
 train_images, train_labels, test_images, test_labels = get_images_labels()
 train_images, test_images = reshaping_images_for_svm(train_images, test_images)
 train_images, test_images = normalize_images(train_images, test_images)
 #train_images, test_images, train_labels, test_labels = make_smaller_sets(train_images, test_images, train_labels, test_labels)
+if (is_apply_pca):
+    train_images, test_images = apply_pca(train_images, test_images)
 
 start_time = time.time()
-train_and_evaluate_svm(train_images, train_labels, test_images, test_labels)
+svm_classifier = train_and_evaluate_svm(train_images, train_labels, test_images, test_labels)
 end_time = time.time()
 print(f"Process completed in {end_time - start_time:.2f} seconds.")
+# if pca is applied, we cannot display
+if (not is_apply_pca):
+    display_support_vectors(svm_classifier,train_images,train_labels)
+
+
+# display support vectors
+#display_images(support_vectors, support_vector_labels)
 
 #find_best_hyperparam(train_images, train_labels)
 #find_best_kernel(train_images, train_labels)
