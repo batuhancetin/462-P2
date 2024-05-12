@@ -5,6 +5,7 @@ from sklearn.metrics import classification_report, accuracy_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import LinearSVC
 from cvxopt import matrix, solvers
+from sklearn.decomposition import PCA
 import time
 
 #need to install 
@@ -194,17 +195,29 @@ def predict_ovr_svm(models, test_data, train_data, train_labels, required_digits
     class_predictions = np.array(required_digits)[predictions_indices]
     return class_predictions
 
+# this function extracts the features, it defaults extract features until 50 features remaining (from 786 28*28)
+def apply_pca(train_images, test_images, n_components=50):
+    start_time = time.time()
+    pca = PCA(n_components=n_components)
+    pca.fit(train_images)
+    train_images_pca = pca.transform(train_images)
+    test_images_pca = pca.transform(test_images)
+    end_time = time.time()
+    print(f"PCA Process completed in {end_time - start_time:.2f} seconds.")
+    return train_images_pca, test_images_pca
+
 # load data
 train_images, train_labels, test_images, test_labels = get_images_labels()
-train_images, test_images, train_labels, test_labels = make_smaller_sets(train_images, test_images, train_labels, test_labels)
+#train_images, test_images, train_labels, test_labels = make_smaller_sets(train_images, test_images, train_labels, test_labels)
 print_test_train_labels(train_labels, test_labels)
 train_images, test_images = reshaping_images_for_svm(train_images, test_images)
 train_images,test_images = normalize_images(train_images,test_images)
 train_labels = np.array(train_labels, dtype=np.double)
 test_labels = np.array(test_labels, dtype=np.double)
 
-required_digits = [2, 3, 8, 9]
 
+required_digits = [2, 3, 8, 9]
+train_images, test_images = apply_pca(train_images, test_images)
 # start the model
 start_time = time.time()
 models = train_ovr_svm(train_images, train_labels, required_digits)

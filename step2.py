@@ -5,6 +5,7 @@ from sklearn.metrics import classification_report, accuracy_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import LinearSVC
 import time
+from sklearn.decomposition import PCA
 
 
 #need to install 
@@ -127,10 +128,25 @@ def find_best_param(train_images, train_labels, test_images, test_labels):
 
 
 # it trains scikit-learn’s soft margin primal SVM function with linear kernel. Its default regularization param is 1.0 to make it soft-margin
-def step_b(train_images, train_labels, test_images, test_labels):
+# if is_feature_extraction is true, it first extracts the features
+def step_b(train_images, train_labels, test_images, test_labels, is_feature_extraction = True):
     regulirazation_param = 1.0 
+    if (is_feature_extraction):
+        train_images, test_images = apply_pca(train_images, test_images)
     start_svm(regulirazation_param, train_images, train_labels, test_images, test_labels)
     #find_best_param()
+
+# this function extracts the features, it defaults extract features until 50 features remaining (from 786 28*28)
+def apply_pca(train_images, test_images, n_components=50):
+    start_time = time.time()
+    pca = PCA(n_components=n_components)
+    pca.fit(train_images)
+    train_images_pca = pca.transform(train_images)
+    test_images_pca = pca.transform(test_images)
+    end_time = time.time()
+    print(f"PCA Process completed in {end_time - start_time:.2f} seconds.")
+    return train_images_pca, test_images_pca
+
 
 
 
@@ -139,7 +155,9 @@ print_test_train_labels(train_labels, test_labels)
 #train_images, test_images, train_labels, test_labels = make_smaller_sets(train_images, test_images, train_labels, test_labels)
 train_images, test_images = reshaping_images_for_svm(train_images, test_images)
 train_images,test_images = normalize_images(train_images,test_images)
-step_b(train_images, train_labels, test_images, test_labels)
+
+step_b(train_images, train_labels, test_images, test_labels, is_feature_extraction=False)
+#step_b(train_images, train_labels, test_images, test_labels)
 #find_best_param(train_images, train_labels, test_images, test_labels)
 
 
