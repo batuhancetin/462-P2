@@ -18,82 +18,7 @@ import matplotlib.pyplot as plt
 #pip3 install scikit-image --break-system-packages
 
 # These are common steps for every run
-def get_images_labels(required_digits):
-    # file paths
-    file_train_images = './mnist/train-images.idx3-ubyte'
-    file_train_labels = './mnist/train-labels.idx1-ubyte'
-    file_test_images = './mnist/t10k-images.idx3-ubyte'
-    file_test_labels = './mnist/t10k-labels.idx1-ubyte'
 
-    # loading the dataset
-    train_images = idx2numpy.convert_from_file(file_train_images)
-    train_labels = idx2numpy.convert_from_file(file_train_labels)
-    test_images = idx2numpy.convert_from_file(file_test_images)
-    test_labels = idx2numpy.convert_from_file(file_test_labels)
-
-    # applying the filtering for required images
-    train_images, train_labels = filter_digits(train_images, train_labels, required_digits)
-    test_images, test_labels = filter_digits(test_images, test_labels, required_digits)
-
-    return train_images, train_labels, test_images, test_labels
-
-# it filters images w.r.t their labels
-# it first only the labels consists required digits then return image and label list correspondingly
-def filter_digits(images, labels, digits):
-    mask = np.isin(labels, digits) # returns true false w.r.t labels
-    filtered_images = images[mask]
-    filtered_labels = labels[mask]
-    return filtered_images, filtered_labels
-
-# it prints how many data exist in the set
-def print_how_many_data(labels):
-    dct = {}
-    for i in labels:
-        if i in dct.keys():
-            dct[i] += 1
-        else:
-            dct[i] = 0
-    
-    print("Labels: " + str(dct))
-    sum = 0
-    for key in dct.keys():
-        sum += dct[key]
-
-    print("Sum: " + str(sum))
-
-# it prints how many data exists in training and test sets
-def print_test_train_labels(train_labels, test_labels):
-    print_how_many_data(train_labels)
-    print_how_many_data(test_labels)
-
-# it will reshaping images from 28x28 matrix to 786-dimensional vector for svm
-def reshaping_images_for_svm(train_images, test_images):
-    train_images = train_images.reshape(train_images.shape[0], -1)
-    test_images = test_images.reshape(test_images.shape[0], -1)
-    return train_images, test_images
-
-# it normalizes the images, simplifies the calculations and execute faster
-def normalize_images(train_images, test_images):
-    print("Min and Max of train_images  in normalization :", np.min(train_images / 255.0), np.max(train_images / 255.0))
-    print("Min and Max of train_images in normalization :", np.min(test_images / 255.0), np.max(test_images / 255.0))
-    return train_images / 255.0, test_images / 255.0
-
-
-# it makes sets smaller to execute algorithms fast
-def make_smaller_sets(train_images, test_images, train_labels, test_labels):
-    train_images = train_images[:1000]
-    test_images = test_images[:100]
-    train_labels = train_labels[:1000]
-    test_labels = test_labels[:100]
-    return train_images, test_images, train_labels, test_labels
-
-# it arranges solver's settings
-def arrange_cvxopt_solver():
-    solvers.options['show_progress'] = False 
-    solvers.options['feastol'] = 1e-9
-    solvers.options['abstol'] = 1e-9
-    solvers.options['reltol'] = 1e-9
-    solvers.options['maxiters'] = 200
 
 class LinearQuadraticSolver:
 
@@ -206,11 +131,12 @@ class LinearQuadraticSolver:
         predictions = np.argmax(np.array(decision_values), axis=0)
 
         # Map indices to original class labels, it converts 0,1,2,3 to 2,3,8,9 as the test label
-        class_predictions = np.array(required_digits)[predictions]
+        class_predictions = np.array(self.required_digits)[predictions]
         return class_predictions
 
     # it applies pca to test and train images
     def apply_pca(self, train_images, test_images, n_components=50):
+        solvers.options['maxiters'] = 45 # to prevent errors
         train_images,test_images = self.normalize_images_before_pca(train_images,test_images)
         start_time = time.time()
         pca = PCA(n_components=n_components)
@@ -334,16 +260,17 @@ class ScikitLinearKernel:
 
 class NonLinearQuadraticSolver():
 
-    def __init__(self, train_images, test_images, train_labels, test_labels, is_feature_extract=True):
+    def __init__(self, train_images, test_images, train_labels, test_labels, is_feature_extract=True, regularization_param = 1):
         self.train_images = train_images
         self.test_images = test_images
         self.train_labels = train_labels
         self.test_labels = test_labels
         self.is_feature_extract = is_feature_extract
+        self.regularization_param = regularization_param
         self.required_digits = [2, 3, 8, 9]
-        self.step_c(train_images, train_labels, test_images, test_labels, is_feature_extract)
+        self.step_c(train_images, train_labels, test_images, test_labels, is_feature_extract, regularization_param)
 
-    def step_c(self, train_images, train_labels, test_images, test_labels, is_feature_extract):
+    def step_c(self, train_images, train_labels, test_images, test_labels, is_feature_extract, regularization_param):
         train_labels = np.array(train_labels, dtype=np.double)
         test_labels = np.array(test_labels, dtype=np.double)
         
@@ -351,8 +278,8 @@ class NonLinearQuadraticSolver():
             train_images, test_images = self.apply_pca(train_images, test_images)
         # start the model
         start_time = time.time()
-        models = self.train_ovr_svm(train_images, train_labels, required_digits)
-        predicted_labels = self.predict_ovr_svm(models, test_images, train_images, train_labels, required_digits)
+        models = self.train_ovr_svm(train_images, train_labels, self.required_digits, regularization_param)
+        predicted_labels = self.predict_ovr_svm(models, test_images, train_images, train_labels, self.required_digits)
         accuracy = accuracy_score(test_labels, predicted_labels)
         print("Accuracy on test data:", accuracy)
         end_time = time.time()
@@ -434,7 +361,7 @@ class NonLinearQuadraticSolver():
             return 0 
 
     # it trains one versus all svm model w.r.t training samples
-    def train_ovr_svm(self, train_data, train_labels, required_digits, regularization_param=1):
+    def train_ovr_svm(self, train_data, train_labels, required_digits, regularization_param):
         models = []
         for digit in required_digits:
             # binary labels for the current class vs all others
@@ -483,36 +410,37 @@ class NonLinearQuadraticSolver():
 
 class ScikitNonLinearKernel:
 
-    def __init__(self, train_images, test_images, train_labels, test_labels, is_feature_extract=True, display_support_vector=False, find_best_params = False):
+    def __init__(self, train_images, test_images, train_labels, test_labels, reg_param = 1.0, is_feature_extract=True, display_support_vector=False, find_best_params = False):
         self.train_images = train_images
         self.test_images = test_images
         self.train_labels = train_labels
         self.test_labels = test_labels
+        self.reg_param = reg_param
         self.is_feature_extract = is_feature_extract
         self.display_support_vector = display_support_vector
         self.find_best_params = find_best_params
         self.required_digits = [2, 3, 8, 9]
-        self.step_d(train_images, train_labels, test_images, test_labels, is_feature_extract, display_support_vector, find_best_params)
+        self.step_d(train_images, train_labels, test_images, test_labels, is_feature_extract, display_support_vector, find_best_params, reg_param)
 
-    def step_d(self, train_images, train_labels, test_images, test_labels, is_feature_extract, display_support_vectors, find_best_params):
+    def step_d(self, train_images, train_labels, test_images, test_labels, is_feature_extract, display_support_vectors, find_best_params, reg_param):
         if (is_feature_extract):
             train_images, test_images = self.apply_pca(train_images, test_images)
 
         start_time = time.time()
-        svm_classifier = self.train_and_evaluate_svm(train_images, train_labels, test_images, test_labels)
+        svm_classifier = self.train_and_evaluate_svm(train_images, train_labels, test_images, test_labels, reg_param)
         end_time = time.time()
         print(f"Process completed in {end_time - start_time:.2f} seconds.")
         if (find_best_params):
-            #self.find_best_hyperparam(train_images, train_labels)
-            #self.find_best_kernel(train_images, train_labels)
+            self.find_best_hyperparam(train_images, train_labels)
+            self.find_best_kernel(train_images, train_labels)
             self.find_best_gamma(train_images, train_labels)
         # if pca is applied, we cannot display
         if display_support_vectors and (not is_feature_extract):
             self.display_support_vectors(svm_classifier,train_images,train_labels)
 
-    def train_and_evaluate_svm(self, train_images, train_labels, test_images, test_labels):
+    def train_and_evaluate_svm(self, train_images, train_labels, test_images, test_labels, reg_param):
         # arranging SVM classifier with a non-linear (rbf) kernel
-        svm_classifier = SVC(kernel='rbf', C=1.0, random_state=42)
+        svm_classifier = SVC(kernel='rbf', C=reg_param, random_state=42)
 
         # train the model
         svm_classifier.fit(train_images, train_labels)
@@ -541,6 +469,7 @@ class ScikitNonLinearKernel:
 
     # finding the best C
     def find_best_hyperparam(self, train_images, train_labels): 
+        print("Wait for find_best_hyperparam..")
         start_time = time.time()
         parameters = {'kernel':('poly', 'rbf'), 'C':[0.1, 1,10]}
         grid_search = GridSearchCV(SVC(kernel='rbf'), parameters)
@@ -552,6 +481,7 @@ class ScikitNonLinearKernel:
 
     # finding the best kernel method
     def find_best_kernel(self, train_images, train_labels): 
+        print("Wait for find_best_kernel..")
         start_time = time.time()
         parameters = {'kernel':('poly', 'rbf', 'sigmoid')}
         grid_search = GridSearchCV(SVC(C=10), parameters)
@@ -563,6 +493,7 @@ class ScikitNonLinearKernel:
 
     # finding the best gamma
     def find_best_gamma(self, train_images, train_labels): 
+        print("Wait for find_best_gamma..")
         start_time = time.time()
         parameters = {'gamma':[0.1, 1]}  # Provide gamma values as floating-point numbers
         grid_search = GridSearchCV(SVC(C=10, kernel='rbf'), parameters)
@@ -593,28 +524,130 @@ class ScikitNonLinearKernel:
                 ax.axis('off')
             plt.show()
 
-# required labels
-required_digits = [2, 3, 8, 9]
-
-is_pca = True
-arrange_cvxopt_solver()
-solvers.options['show_progress'] = True 
-# Load and preprocess data
-train_images, train_labels, test_images, test_labels = get_images_labels(required_digits)
-print_test_train_labels(train_labels, test_labels)
-#train_images, test_images, train_labels, test_labels = make_smaller_sets(train_images, test_images, train_labels, test_labels)
-train_images, test_images = reshaping_images_for_svm(train_images, test_images)
-train_images,test_images = normalize_images(train_images,test_images)
-
-# step 1.a
-LinearQuadraticSolver(train_images,test_images,train_labels,test_labels)
-# step 1.b
-#ScikitLinearKernel(train_images, test_images, train_labels, test_labels, 1.0, is_feature_extract=False, find_best_params=False)
-
-# step 1.c
-#NonLinearQuadraticSolver(train_images, test_images, train_labels, test_labels, is_feature_extract=True)
-
-# step 1.d
-#ScikitNonLinearKernel(train_images, test_images, train_labels, test_labels, is_feature_extract=True, display_support_vector=False, find_best_params = True)
 
 
+class MainClass():
+
+    def __init__(self) -> None:
+        self.run_code()
+
+    def run_code(self):
+        # required labels
+        required_digits = [2, 3, 8, 9]
+
+        print("Which step would you run \n 1 for SVM from scratch using a quadratic programming solver \n 2 scikit-learn’s soft margin primal SVM function with linear kernel \n 3 for dual formulation of SVM from scratch using a quadratic programming solver \n 4 for scikit-learn’s soft margin dual SVM function with a non-linear kernel")
+        option = input()
+        train_images, train_labels, test_images, test_labels = self.get_images_labels(required_digits)
+        self.print_test_train_labels(train_labels, test_labels)
+        self.arrange_cvxopt_solver()
+        solvers.options['show_progress'] = True 
+        if option == "3":
+            # make dataset smallar to execute it fast
+            train_images, test_images, train_labels, test_labels = self.make_smaller_sets(train_images, test_images, train_labels, test_labels)
+
+        train_images, test_images = self.reshaping_images_for_svm(train_images, test_images)
+        train_images,test_images = self.normalize_images(train_images,test_images)
+        
+        # Execute functions based on the input
+        if option == "1":
+            # if you want to apply pca you should make is_feature_extract True
+            # if you want to change regularization param, you can change it
+            LinearQuadraticSolver(train_images,test_images,train_labels,test_labels,is_feature_extract=True, regularization_param = 1e-6)
+        elif option == "2":
+            # if you want to apply pca you should make is_feature_extract True
+            # if you want to see best parameters you should make find_best_params True
+            # if you want to change regularization param, you can change it
+            ScikitLinearKernel(train_images, test_images, train_labels, test_labels, regularazation_param = 1.0, is_feature_extract=True, find_best_params=False)
+        elif option == "3":
+            # if you want to apply pca you should make is_feature_extract True
+            # if you want to change regularization param, you can change it
+            NonLinearQuadraticSolver(train_images, test_images, train_labels, test_labels, is_feature_extract=True, regularization_param = 1)
+
+        elif option == "4":
+            # if you want to apply pca you should make is_feature_extract True
+            # if you want to see best parameters you should make find_best_params True
+            # if you want to change regularization param, you can change it
+            # if you want to display support vectors you should make display_support_vector True, is_feature_extract False
+            ScikitNonLinearKernel(train_images, test_images, train_labels, test_labels, reg_param = 1.0, is_feature_extract=True, display_support_vector=False, find_best_params = False)
+        else:
+            print("Invalid option! " + str(option) + " Choose from 1, 2, 3, or 4.")
+    
+    def get_images_labels(self, required_digits):
+        # file paths
+        file_train_images = './mnist/train-images.idx3-ubyte'
+        file_train_labels = './mnist/train-labels.idx1-ubyte'
+        file_test_images = './mnist/t10k-images.idx3-ubyte'
+        file_test_labels = './mnist/t10k-labels.idx1-ubyte'
+
+        # loading the dataset
+        train_images = idx2numpy.convert_from_file(file_train_images)
+        train_labels = idx2numpy.convert_from_file(file_train_labels)
+        test_images = idx2numpy.convert_from_file(file_test_images)
+        test_labels = idx2numpy.convert_from_file(file_test_labels)
+
+        # applying the filtering for required images
+        train_images, train_labels = self.filter_digits(train_images, train_labels, required_digits)
+        test_images, test_labels = self.filter_digits(test_images, test_labels, required_digits)
+
+        return train_images, train_labels, test_images, test_labels
+
+    # it filters images w.r.t their labels
+    # it first only the labels consists required digits then return image and label list correspondingly
+    def filter_digits(self, images, labels, digits):
+        mask = np.isin(labels, digits) # returns true false w.r.t labels
+        filtered_images = images[mask]
+        filtered_labels = labels[mask]
+        return filtered_images, filtered_labels
+
+    # it prints how many data exist in the set
+    def print_how_many_data(self, labels):
+        dct = {}
+        for i in labels:
+            if i in dct.keys():
+                dct[i] += 1
+            else:
+                dct[i] = 0
+        
+        print("Labels: " + str(dct))
+        sum = 0
+        for key in dct.keys():
+            sum += dct[key]
+
+        print("Sum: " + str(sum))
+
+    # it prints how many data exists in training and test sets
+    def print_test_train_labels(self, train_labels, test_labels):
+        self.print_how_many_data(train_labels)
+        self.print_how_many_data(test_labels)
+
+    # it will reshaping images from 28x28 matrix to 786-dimensional vector for svm
+    def reshaping_images_for_svm(self, train_images, test_images):
+        train_images = train_images.reshape(train_images.shape[0], -1)
+        test_images = test_images.reshape(test_images.shape[0], -1)
+        return train_images, test_images
+
+    # it normalizes the images, simplifies the calculations and execute faster
+    def normalize_images(self, train_images, test_images):
+        print("Min and Max of train_images  in normalization :", np.min(train_images / 255.0), np.max(train_images / 255.0))
+        print("Min and Max of train_images in normalization :", np.min(test_images / 255.0), np.max(test_images / 255.0))
+        return train_images / 255.0, test_images / 255.0
+
+
+    # it makes sets smaller to execute algorithms fast
+    def make_smaller_sets(self, train_images, test_images, train_labels, test_labels):
+        train_images = train_images[:1000]
+        test_images = test_images[:100]
+        train_labels = train_labels[:1000]
+        test_labels = test_labels[:100]
+        return train_images, test_images, train_labels, test_labels
+
+    # it arranges solver's settings
+    def arrange_cvxopt_solver(self):
+        solvers.options['show_progress'] = False 
+        solvers.options['feastol'] = 1e-9
+        solvers.options['abstol'] = 1e-9
+        solvers.options['reltol'] = 1e-9
+        solvers.options['maxiters'] = 200
+
+# to change the code easily, you should change MainClass.run_code(self) method at line 534, it includes required explanations
+MainClass()
