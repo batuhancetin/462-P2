@@ -1,6 +1,8 @@
 import numpy as np
 from collections import Counter
 from keras.datasets import mnist
+from sklearn.decomposition import PCA
+
 
 # Load MNIST data
 (train_X, train_y), (test_X, test_y) = mnist.load_data()
@@ -92,21 +94,42 @@ def calculate_sse(data, centroids, labels):
     return sse
 
 
+# this function extracts the features, it defaults extract features until 50 features remaining (from 786 28*28)
+def apply_pca(train_images, n_components=50):
+    pca = PCA(n_components=n_components)
+    pca.fit(train_images)
+    train_images_pca = pca.transform(train_images)
+    return train_images_pca
+
+
 # Perform k-means clustering on selected digits
 k = len(selected_digits)
+# Perform k-means clustering with Euclidian distance
 centroids_euclidian, labels_euclidian = kmeans_with_euclidian(x_flattened, k)
 
 accuracy_euclidian = calculate_accuracy(y_selected, labels_euclidian, k)
 sse_euclidian = calculate_sse(x_flattened, centroids_euclidian, labels_euclidian)
 
-
+# Perform k-means clustering with cosine similarity
 centroids_cosine, labels_cosine = kmeans_with_cosine_similarity(x_flattened, k)
 
 accuracy_cosine = calculate_accuracy(y_selected, labels_cosine, k)
 sse_cosine = calculate_sse(x_flattened, centroids_cosine, labels_cosine)
+
+# Perform k-means clustering on extracted features with Euclidian distance
+extracted_images = apply_pca(train_images=x_flattened)
+centroids_euclidian_extracted, labels_euclidian_extracted = kmeans_with_euclidian(extracted_images, k)
+
+accuracy_euclidian_extracted = calculate_accuracy(y_selected, labels_euclidian_extracted, k)
+sse_euclidian_extracted = calculate_sse(extracted_images, centroids_euclidian_extracted, labels_euclidian_extracted)
+
 
 print("Accuracy of euclidian: ", accuracy_euclidian)
 print("SSE of euclidian: ", sse_euclidian)
 
 print("Accuracy of cosine similarity: ", accuracy_cosine)
 print("SSE of cosine similarity: ", sse_cosine)
+
+print("Accuracy of euclidian features extracted ", accuracy_euclidian_extracted)
+print("SSE of euclidian features extracted ", sse_euclidian_extracted)
+
