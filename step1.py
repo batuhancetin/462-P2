@@ -152,6 +152,7 @@ def set_QP_matrices(train_data, train_labels, n_samples):
     G = matrix(-A)  # Inequality needs to be in the form of Gx <= h
     h = matrix(-c)
     # Debug print
+
     eigenvalues = np.linalg.eigvals(Q)
     if np.any(eigenvalues < 0):
         print("Q is not positive semidefinite.")

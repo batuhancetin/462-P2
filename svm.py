@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 
 class LinearQuadraticSolver:
 
-    def __init__(self, train_images, test_images, train_labels, test_labels, regularization_param = 1e-6, is_feature_extract=False):
+    def __init__(self, train_images, test_images, train_labels, test_labels, regularization_param = 0.1, is_feature_extract=False):
         self.train_images = train_images
         self.test_images = test_images
         self.train_labels = train_labels
@@ -40,8 +40,12 @@ class LinearQuadraticSolver:
         start_time = time.time()
         models = self.train_ovr_svm(self.train_images, self.train_labels, self.required_digits, n_samples)
         test_predictions = self.predict_ovr_svm(models, self.test_images)
+        test_accuracy = accuracy_score(self.test_labels, test_predictions)
+        print("Test Accuracy: ", test_accuracy)
+        train_predictions = self.predict_ovr_svm(models, self.train_images)
+        train_accuracy = accuracy_score(self.train_labels, train_predictions)
+        print("Train Accuracy: ", train_accuracy)
         end_time = time.time()
-        print("Test Accuracy:", accuracy_score(self.test_labels, test_predictions))
         print(f"Process completed in {end_time - start_time:.2f} seconds.")
 
 
@@ -52,7 +56,7 @@ class LinearQuadraticSolver:
         # Set up QP matrices
         Q = np.zeros((n_features + 1, n_features + 1)) # create a zero matrix at first, to complete 0d and 0d^T easily in initialization
         #Q[1:, 1:] = np.eye(n_features)  # identity matrix in lower right
-        Q[1:, 1:] = np.eye(n_features) * (1 + self.regularization_param)
+        Q[1:, 1:] = np.eye(n_features) * (1 - self.regularization_param)
         p = np.zeros(n_features + 1)
 
         # Constructing the matrix A for inequalities
@@ -63,7 +67,7 @@ class LinearQuadraticSolver:
         y_col = train_labels[:, np.newaxis] # convert y into a column vector for multipliyng with X and get the rest
         A[:, 1:] = y_col * train_data  #for each row the rest of the indices should = y_i * x_i^T which is y_col * X
 
-        c = np.ones(n_samples)  # The >= 1 vector
+        c = np.ones(n_samples) # The >= 1 vector
 
         # Convert to cvxopt format
         Q = matrix(Q)
@@ -74,16 +78,16 @@ class LinearQuadraticSolver:
         h = matrix(-c)
         
         # Debug print
-        eigenvalues = np.linalg.eigvals(Q)
-        if np.any(eigenvalues < 0):
-            print("Q is not positive semidefinite.")
-        print(f"Q shape: {Q.size}, p shape: {p.size}, G shape: {G.size}, h shape: {h.size}")
+        #eigenvalues = np.linalg.eigvals(Q)
+        #if np.any(eigenvalues < 0):
+            #print("Q is not positive semidefinite.")
+        #print(f"Q shape: {Q.size}, p shape: {p.size}, G shape: {G.size}, h shape: {h.size}")
         #print("Check Q matrix for negative diagonal elements:", np.diag(Q))
-        print("Eigenvalues of Q:", np.linalg.eigvals(Q))
-        print("Check min/max of G:", np.min(G), np.max(G))
-        print("Check min/max of h:", np.min(h), np.max(h))
+        #print("Eigenvalues of Q:", np.linalg.eigvals(Q))
+        #print("Check min/max of G:", np.min(G), np.max(G))
+        #print("Check min/max of h:", np.min(h), np.max(h))
         
-        print(f"Q shape: {Q.size}, p shape: {p.size}, G shape: {G.size}, h shape: {h.size}")
+        #print(f"Q shape: {Q.size}, p shape: {p.size}, G shape: {G.size}, h shape: {h.size}")
         return Q,p,G,h
 
 
@@ -92,10 +96,9 @@ class LinearQuadraticSolver:
         # Attempt to solve QP problem 
         
         solution = solvers.qp(Q, p, G, h)
-        if solution['status'] != 'optimal':
-            print("Warning: Not optimal solution found.")
-        #solution = solvers.qp(Q, p, G, h)
-        print("Solution: " + str(solution))        
+        #if solution['status'] != 'optimal':
+            #print("Warning: Not optimal solution found.")
+        #print("Solution: " + str(solution))        
         # Extract weights and bias
         weights = np.array(solution['x']).flatten() #make it row vector instead of column
         b = weights[0] # first one is bias
@@ -217,7 +220,7 @@ class ScikitLinearKernel:
 
         print("Training Accuracy: ", accuracy_score(train_labels, train_predictions))
         print("Testing Accuracy: ", accuracy_score(test_labels, test_predictions))
-        print("\nClassification Report:\n", classification_report(test_labels, test_predictions))
+        #print("\nClassification Report:\n", classification_report(test_labels, test_predictions))
         end_time = time.time()
         print(f"Process completed in {end_time - start_time:.2f} seconds.")
 
@@ -242,7 +245,7 @@ class ScikitLinearKernel:
         best_model = grid_search.best_estimator_
         best_predictions = best_model.predict(test_images)
         print("Test Accuracy with Best Model: ", accuracy_score(test_labels, best_predictions))
-        print("\nBest Model Classification Report:\n", classification_report(test_labels, best_predictions))
+        #print("\nBest Model Classification Report:\n", classification_report(test_labels, best_predictions))
 
         end_time = time.time()
         print(f"Process completed in {end_time - start_time:.2f} seconds.")
@@ -279,9 +282,12 @@ class NonLinearQuadraticSolver():
         # start the model
         start_time = time.time()
         models = self.train_ovr_svm(train_images, train_labels, self.required_digits, regularization_param)
-        predicted_labels = self.predict_ovr_svm(models, test_images, train_images, train_labels, self.required_digits)
-        accuracy = accuracy_score(test_labels, predicted_labels)
-        print("Accuracy on test data:", accuracy)
+        predicted_test = self.predict_ovr_svm(models, test_images, train_images, train_labels, self.required_digits)
+        accuracy = accuracy_score(test_labels, predicted_test)
+        print("Testing Accuracy:", accuracy)
+        predicted_train = self.predict_ovr_svm(models, train_images, train_images, train_labels, self.required_digits)
+        accuracy = accuracy_score(train_labels, predicted_train)
+        print("Training Accuracy:", accuracy)
         end_time = time.time()
         print(f"Process completed in {end_time - start_time:.2f} seconds.")
 
@@ -450,8 +456,12 @@ class ScikitNonLinearKernel:
 
         # evaluating the model by comparing prediction and actual labels
         accuracy = accuracy_score(test_labels, y_pred)
-        print("Accuracy:", accuracy)
-        print("\nClassification Report:\n", classification_report(test_labels, y_pred))
+        print("Testing Accuracy: ", accuracy)
+
+        train_predict = svm_classifier.predict(train_images)
+        accuracy_train = accuracy_score(train_labels, train_predict)
+        print("Training Accuracy: ", accuracy_train)
+        #print("\nClassification Report:\n", classification_report(test_labels, y_pred))
 
         return svm_classifier
 
@@ -530,47 +540,6 @@ class MainClass():
 
     def __init__(self) -> None:
         self.run_code()
-
-    def run_code(self):
-        # required labels
-        required_digits = [2, 3, 8, 9]
-
-        print("Which step would you run \n 1 for SVM from scratch using a quadratic programming solver \n 2 scikit-learn’s soft margin primal SVM function with linear kernel \n 3 for dual formulation of SVM from scratch using a quadratic programming solver \n 4 for scikit-learn’s soft margin dual SVM function with a non-linear kernel")
-        option = input()
-        train_images, train_labels, test_images, test_labels = self.get_images_labels(required_digits)
-        self.print_test_train_labels(train_labels, test_labels)
-        self.arrange_cvxopt_solver()
-        solvers.options['show_progress'] = True 
-        if option == "3":
-            # make dataset smallar to execute it fast
-            train_images, test_images, train_labels, test_labels = self.make_smaller_sets(train_images, test_images, train_labels, test_labels)
-
-        train_images, test_images = self.reshaping_images_for_svm(train_images, test_images)
-        train_images,test_images = self.normalize_images(train_images,test_images)
-        
-        # Execute functions based on the input
-        if option == "1":
-            # if you want to apply pca you should make is_feature_extract True
-            # if you want to change regularization param, you can change it
-            LinearQuadraticSolver(train_images,test_images,train_labels,test_labels,is_feature_extract=True, regularization_param = 1e-6)
-        elif option == "2":
-            # if you want to apply pca you should make is_feature_extract True
-            # if you want to see best parameters you should make find_best_params True
-            # if you want to change regularization param, you can change it
-            ScikitLinearKernel(train_images, test_images, train_labels, test_labels, regularazation_param = 1.0, is_feature_extract=True, find_best_params=False)
-        elif option == "3":
-            # if you want to apply pca you should make is_feature_extract True
-            # if you want to change regularization param, you can change it
-            NonLinearQuadraticSolver(train_images, test_images, train_labels, test_labels, is_feature_extract=True, regularization_param = 1)
-
-        elif option == "4":
-            # if you want to apply pca you should make is_feature_extract True
-            # if you want to see best parameters you should make find_best_params True
-            # if you want to change regularization param, you can change it
-            # if you want to display support vectors you should make display_support_vector True, is_feature_extract False
-            ScikitNonLinearKernel(train_images, test_images, train_labels, test_labels, reg_param = 1.0, is_feature_extract=True, display_support_vector=False, find_best_params = False)
-        else:
-            print("Invalid option! " + str(option) + " Choose from 1, 2, 3, or 4.")
     
     def get_images_labels(self, required_digits):
         # file paths
@@ -648,6 +617,53 @@ class MainClass():
         solvers.options['abstol'] = 1e-9
         solvers.options['reltol'] = 1e-9
         solvers.options['maxiters'] = 200
+
+    def run_code(self):
+        # required labels
+        required_digits = [2, 3, 8, 9]
+
+        print("Which step would you run? \n" + 
+              "1 for SVM from scratch using a quadratic programming solver with PCA & regularization_param = 0.1 \n" + 
+              "2 scikit-learn’s soft margin primal SVM function with linear kernel with PCA and regularization_param = 1 \n" + 
+              "3 for dual formulation of SVM from scratch using a quadratic programming solver with PCA and regularization_param = 1 \n" +
+              "4 for scikit-learn’s soft margin dual SVM function with a non-linear kernel with PCA and regularization_param = 1 \n" +
+              "You can change the parameters easily when calling their classes from their constructors")
+        option = input()
+        train_images, train_labels, test_images, test_labels = self.get_images_labels(required_digits)
+        self.print_test_train_labels(train_labels, test_labels)
+        self.arrange_cvxopt_solver()
+        #solvers.options['show_progress'] = True 
+        if option == "3":
+            # make dataset smallar to execute it fast
+            train_images, test_images, train_labels, test_labels = self.make_smaller_sets(train_images, test_images, train_labels, test_labels)
+            self.print_test_train_labels(train_labels, test_labels)
+        train_images, test_images = self.reshaping_images_for_svm(train_images, test_images)
+        train_images,test_images = self.normalize_images(train_images,test_images)
+        
+        # Execute functions based on the input
+        if option == "1":
+            # if you want to apply pca you should make is_feature_extract True
+            # if you want to change regularization param, you can change it
+            LinearQuadraticSolver(train_images,test_images,train_labels,test_labels,is_feature_extract=False, regularization_param = 0.1)
+        elif option == "2":
+            # if you want to apply pca you should make is_feature_extract True
+            # if you want to see best parameters you should make find_best_params True
+            # if you want to change regularization param, you can change it
+            ScikitLinearKernel(train_images, test_images, train_labels, test_labels, regularazation_param = 1.0, is_feature_extract=False, find_best_params=False)
+        elif option == "3":
+            # if you want to apply pca you should make is_feature_extract True
+            # if you want to change regularization param, you can change it
+            NonLinearQuadraticSolver(train_images, test_images, train_labels, test_labels, is_feature_extract=False, regularization_param = 1)
+
+        elif option == "4":
+            # if you want to apply pca you should make is_feature_extract True
+            # if you want to see best parameters you should make find_best_params True
+            # if you want to change regularization param, you can change it
+            # if you want to display support vectors you should make display_support_vector True, is_feature_extract False
+            ScikitNonLinearKernel(train_images, test_images, train_labels, test_labels, reg_param = 1.0, is_feature_extract=False, display_support_vector=False, find_best_params = False)
+        else:
+            print("Invalid option! " + str(option) + " Choose from 1, 2, 3, or 4.")
+            self.run_code()
 
 # to change the code easily, you should change MainClass.run_code(self) method at line 534, it includes required explanations
 MainClass()
